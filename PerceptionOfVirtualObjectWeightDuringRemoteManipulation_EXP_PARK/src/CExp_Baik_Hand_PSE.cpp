@@ -4,6 +4,10 @@
 
 #include "CMCI_sound.h"
 
+#include <random>
+#include <iostream>
+
+using namespace std;
 
 #include "display_helper.h"
 #include "Timer_exp.h"
@@ -16,12 +20,11 @@ const char m_instruction_msg[][4][128] = {
 	{{"Insert your index finger."}, {"To move to the next phase, hit the 'Enter"}},	//INIT
 	{{"There are three types of weights."}, {"Grab an object and pull."}, {"It feels like an object is slipping from your hand because it is heavy."},{"Hit 'Enter' to train."}}, // DEVICE_INIT	// adjusts the tendons' tension 
 //	{{"Hit 'space bar' to setup the force feedback position"}, {"Hit 'Enter' to move to type the participant information"}},	// PHANTOM_SETUP
-	{{"Enter : "},{"Select (A,B,C) and Grab"},{"Hit 'space bar' and pull the virtual object"},{"To move to the next phase, hit the 'Enter'"}},
 	{{"subject ID:"}, {"Type subject ID and hit 'Enter' to begin the measurement."}, {""}}, // INFO_INPUT
+	{{"Enter : "},{"Select (A,B,C) and Grab"},{"Hit 'space bar' and pull the virtual object"},{"To move to the next phase, hit the 'Enter'"}},	//force_test
 	{{"Trial No. :"}, {"Hit the spacebar to feel the force feedback to the fingertip."}, {""}, {""}},	// EXP_PHASE1
-	{{"Enter : "}, {"Select (A,B,C) and Grab"},{"Hit 'space bar' and pull the virtual object"}, {"Remember which one is heavier. To move to the next phase, hit the 'Enter'"}},	// EXP_PHASE2
-	{{"Which one was heavier? ('a' or 'b') : "}, 
-		{"If you want to feel the force feedback again, hit the spacebar."}, {"To move to the next trial, hit the 'Enter'."}},		// EXP_PHASE3
+	{{"Enter : "}, {"Hit 'm' and Grab"},{"Hit 'space bar' and pull the virtual object"}, {"Remember the weight. To move to the next phase, hit the 'Enter'"}},	// EXP_PHASE2
+	{{"Which one do you think? : "},  {"To move to the next trial, hit the 'Enter'."}},		// EXP_PHASE3
 	//{{""}, {""}, {""}}, // DATA_ANALYSIS.
 	//{{""},},//WRITE_RESULT,
 	{{"Experiment Complete. Thank you for your participation."}}//EXP_DONE,
@@ -54,12 +57,8 @@ cExp_Baik_Hand_PSE::cExp_Baik_Hand_PSE() {
 	m_enableFctrl = false;
 	for (i = 0; i < 2; i++) m_force_d[i] = 0.0;
 	for(i=0;i<2;i++) m_f_state[i] = 0;
-	m_tot_trial = 6;
-	for (i = 0; i < m_tot_trial; i++) {
-		m_trial_pt_force[i] = trial_pt_force[i];
-		m_trial_joint[i] = trial_joint[i];
-		m_trial_force_d[i] = 0.0;
-	}
+	m_tot_trial = 10;
+	
 //	m_val_bar = 0.0;
 	m_disp_f_bar = false;
 	m_fc_opt = true;
@@ -78,9 +77,10 @@ cExp_Baik_Hand_PSE::cExp_Baik_Hand_PSE() {
 	m_select_sphere_c = false;
 
 	m_bending_sensor_input = false;
-
+	
 	/*Serial*/
-	SP = new Serial("\\\\.\\COM4");
+	//SP = new Serial("\\\\.\\COM4");	//CUTANEOUS
+	SP = new Serial("\\\\.\\COM9");	//VIBROTACTILE
 
 	
 	m_FSR_force = 0.0;
@@ -91,6 +91,26 @@ cExp_Baik_Hand_PSE::cExp_Baik_Hand_PSE() {
 cExp_Baik_Hand_PSE::~cExp_Baik_Hand_PSE() {
 	
 }
+
+int cExp_Baik_Hand_PSE::gen_random_num()
+{
+	random_device rd;
+	mt19937 gen(rd());
+	uniform_int_distribution<int> dis(1, 2);
+	int ret = dis(gen);
+	return ret;
+}
+
+int cExp_Baik_Hand_PSE::get_curr_trial_num()
+{
+	return m_curr_trial_no;
+}
+
+int cExp_Baik_Hand_PSE::get_total_trial()
+{
+	return m_tot_trial;
+}
+
 
 int cExp_Baik_Hand_PSE::handleKeyboard(unsigned char key, char* ret_string)	// pure virtual functions
 {
@@ -104,7 +124,7 @@ int cExp_Baik_Hand_PSE::handleKeyboard(unsigned char key, char* ret_string)	// p
 		m_exp_phase = EXP_PHASE::QUIT_EXP;
 		sendArd(0, 0);
 		ret = 100;
-
+		
 	}
 	else {
 		if (m_exp_phase == EXP_PHASE::INIT) {
@@ -118,9 +138,6 @@ int cExp_Baik_Hand_PSE::handleKeyboard(unsigned char key, char* ret_string)	// p
 			else if (key == 13) moveToNextPhase();
 		}
 		else if (m_exp_phase == EXP_PHASE::FORCE_TEST) {		
-			if (key == 'm') {
-				m_sphere_move = true;
-			}
 			if (key == 'a' || key == 'b' || key == 'c') {
 				m_txtBuf[m_textBuf_len++] = key;
 				m_txtBuf[m_textBuf_len] = NULL;
@@ -129,24 +146,23 @@ int cExp_Baik_Hand_PSE::handleKeyboard(unsigned char key, char* ret_string)	// p
 					m_select_sphere_b = false;
 					m_select_sphere_c = false;
 					//SP->WriteData("1", 255);
-					
 				}
 				else if (key == 'b') {
+					m_select_sphere_b = true;
 					m_select_sphere_a = false;
 					m_select_sphere_c = false;
-					m_select_sphere_b = true;
 				}
 				else if (key == 'c') {
+					m_select_sphere_c = true;
 					m_select_sphere_a = false;
 					m_select_sphere_b = false;
-					m_select_sphere_c = true;
 				}
 			}
 			if (key == ' ') {
 				for (int i = 0; i < m_textBuf_len; i++)m_txtBuf[i] = NULL;
 				m_textBuf_len = 0;
 				m_sphere_move = true;
-				//SP->WriteData("1", 255);
+
 			}
 			if (key == '7') {
 				if (m_prev_pt_force > 0.0) m_prev_pt_force -= 0.5;
@@ -230,16 +246,26 @@ int cExp_Baik_Hand_PSE::handleKeyboard(unsigned char key, char* ret_string)	// p
 			if (key == ' ') moveToNextPhase();
 		}
 		else if (m_exp_phase == EXP_PHASE::EXP_PHASE2) {
-			if (key == 'a' || key == 'b') {
+			if (key == 'm') {	//¹«½¼ Å°·Î ÇÒÁö Á¤ÇØ¾ßÇÔ
 				m_txtBuf[m_textBuf_len++] = key;
 				m_txtBuf[m_textBuf_len] = NULL;
-				if (key == 'a') {
+				if (m_trial_reference[m_curr_trial_no - 1] == 'a') {
+					printf("m_selec_a trueµÊ");
 					m_select_sphere_a = true;
-					m_select_sphere_b = false;
+					m_select_sphere_b = false; 
+					m_select_sphere_c = false;
 				}
-				else if (key == 'b') {
+				else if (m_trial_reference[m_curr_trial_no - 1] == 'b') {
+					printf("m_selec_b trueµÊ");
 					m_select_sphere_a = false;
 					m_select_sphere_b = true;
+					m_select_sphere_c = false;
+				}
+				else if (m_trial_reference[m_curr_trial_no - 1] == 'c') {
+					printf("m_selec_c trueµÊ");
+					m_select_sphere_a = false;
+					m_select_sphere_b = false;
+					m_select_sphere_c = true;
 				}
 			}
 			if (key == ' ') {
@@ -247,40 +273,50 @@ int cExp_Baik_Hand_PSE::handleKeyboard(unsigned char key, char* ret_string)	// p
 				m_textBuf_len = 0;
 				m_sphere_move = true;
 			}
-			else if (key == 13) moveToNextPhase();
+			else if (key == 13) {
+				m_select_sphere_a = false;
+				m_select_sphere_b = false;
+				m_select_sphere_c = false;
+				m_sphere_move = false;
+				for (int i = 0; i < m_textBuf_len; i++)m_txtBuf[i] = NULL;
+				m_textBuf_len = 0;
+				//printf("%c", m_trial_reference[m_curr_trial_no - 1]);
+				moveToNextPhase();
+			}
 		}
 		else if (m_exp_phase == EXP_PHASE::EXP_PHASE3) {
-			if (key == ' ') {
+			if (key == ' ') {	//go to previous phase 
 				m_exp_phase = EXP_PHASE::EXP_PHASE2;
 				m_disp_f_bar = false;
-				if (m_trial_joint[m_curr_trial_no - 1] == 0){
-					m_uwnd_dur = 0.8 + (0.4 / (m_max_f_d - m_min_f_d))*(m_force_d[0] - m_min_f_d);	///
-				}
-				else {
-					m_uwnd_dur = 1.3 + (0.3 / (m_max_f_d - m_min_f_d))*(m_force_d[1] - m_min_f_d);	///
-				}
+				m_disp_test_sphere = true;
 				m_pTimer->setLimit(m_uwnd_dur);// (0.7)
-				enableForceCtrl(false, true, m_trial_joint[m_curr_trial_no-1]);
-				for (i = 0; i < 2; i++) {
-					m_f_state[i] = 0;
-					m_force_d[i] = m_min_f_d;
-				}
+				
 				//if (m_trial_joint[m_curr_trial_no - 1] == 0) {
 				//	windTendon(0, 1);
 				//}
 				//else {
 				//	windTendon(1, 1);
 				//}
-				m_prev_pt_force = m_trial_pt_force[m_curr_trial_no - 1];				
+							
 			}
-			else if (key == 'a' || key == 'b') {
+			else if (key == 8) { // backspace
+				if (m_textBuf_len > 0) {
+					m_txtBuf[--m_textBuf_len] = NULL;
+				}
+			}
+			else if (key == 'a' || key == 'b' || key == 'c') {
 				m_txtBuf[m_textBuf_len++] = key;
 				m_txtBuf[m_textBuf_len] = NULL;
+				m_trial_answer[m_curr_trial_no - 1] = key;
 			}
-			///save answer ¼öÁ¤ ÇÊ¿ä
 			else if (key == 13) {
-				for (int i = 0; i < m_textBuf_len; i++)m_txtBuf[i] = NULL;
 				m_textBuf_len = 0;
+				m_txtBuf[m_textBuf_len] = NULL;
+				
+				m_select_sphere_a = false;
+				m_select_sphere_b = false;
+				m_select_sphere_c = false;
+				m_sphere_move = false;
 				moveToNextPhase();
 			}
 		}
@@ -324,7 +360,6 @@ void cExp_Baik_Hand_PSE::handleSpecialKeys(int key, int x, int y)
 		break;
 	case GLUT_KEY_F7:
 		SP->WriteData("5", 255);
-		Sleep(100);
 		break;
 	case GLUT_KEY_UP:
 		printf("up\n");
@@ -382,58 +417,60 @@ int cExp_Baik_Hand_PSE::moveToNextPhase(char *ret_string)
 		m_disp_coeff = true;
 	}
 	else if (m_exp_phase == EXP_PHASE::DEVICE_INIT) {
-		m_exp_phase = EXP_PHASE::FORCE_TEST;
+		m_exp_phase = EXP_PHASE::INFO_INPUT;
 		//m_enableFctrl = true;
 		enableForceCtrl(true, false, 0);
 		m_disp_coeff = false;
 		//m_disp_f_coeff = true;
-		m_disp_train_sphere = true;
-	}
-	else if (m_exp_phase == EXP_PHASE::FORCE_TEST) {
-		m_exp_phase = EXP_PHASE::INFO_INPUT;
-		// set output force to zero
-		m_f_state[0] = m_f_state[1] = 0;// 2;
-		m_disp_f_coeff = false;
-		m_prev_pt_force = 0.0;
-		m_pwm_val = 255;
-		enableForceCtrl(false, true, -1);
+		
 	}
 	else if (m_exp_phase == EXP_PHASE::INFO_INPUT) {
 		m_curr_trial_no = 1;
 		time(&m_expBeginTime);
 		time(&m_trialBeginTime);
 		setAudioPhase(AUDIO_PHASE::PLAY);
-		for (i = 0; i < 2; i++) {
-			m_f_state[i] = 0;// 2;
-			m_force_d[i] = m_min_f_d;
-		}
+		
 	//	m_val_bar = 0.2*0.5;
 		m_uwnd_dur = 1.0;
 		m_pTimer->setLimit(m_uwnd_dur);// (0.7);
 		m_disp_f_bar = false;
 	//	m_enableFctrl = false;
 		///
-
+		
+		m_disp_train_sphere = true;
+		m_exp_phase = EXP_PHASE::FORCE_TEST;
+	}
+	else if (m_exp_phase == EXP_PHASE::FORCE_TEST) {
 		time(&m_expBeginTime);
 		time(&m_trialBeginTime);
 		recordResult(RECORD_TYPE::REC_INIT);
 		m_exp_phase = EXP_PHASE::EXP_PHASE1;
+		// set output force to zero
 	}
 	else if (m_exp_phase == EXP_PHASE::EXP_PHASE1) {
-		m_prev_pt_force = m_trial_pt_force[m_curr_trial_no-1];
 		m_disp_test_sphere = true;
+		int random_num = gen_random_num();
+		if (m_curr_trial_no < m_tot_trial/2+1)
+		{
+			if (random_num == 1) {
+				m_trial_reference[m_curr_trial_no - 1] = 'a';
+			}
+			else if (random_num == 2) {
+				m_trial_reference[m_curr_trial_no - 1] = 'c';
+			}
+		}
+		else  
+		{
+			if (random_num == 1) {
+				m_trial_reference[m_curr_trial_no - 1] = 'a';
+			}
+			else if (random_num == 2) {
+				m_trial_reference[m_curr_trial_no - 1] = 'b';
+			}
+		}
 		m_exp_phase = EXP_PHASE::EXP_PHASE2;
 	}
 	else if (m_exp_phase == EXP_PHASE::EXP_PHASE2) {
-		m_prev_pt_force = 0.0;
-		if (m_trial_joint[m_curr_trial_no-1] == 0) {
-			m_f_state[0] = 1;
-			m_f_state[1] = 0;
-		}
-		else {
-			m_f_state[0] = 0;
-			m_f_state[1] = 1;
-		}
 		//m_disp_f_bar = true;
 		//enableForceCtrl(true, false, 0);
 
@@ -442,23 +479,16 @@ int cExp_Baik_Hand_PSE::moveToNextPhase(char *ret_string)
 	}
 	else if(m_exp_phase == EXP_PHASE::EXP_PHASE3) {
 		//// recording
-		m_prev_pt_force = 0.0;
-		if (m_trial_joint[m_curr_trial_no - 1] == 0) m_trial_force_d[m_curr_trial_no-1] = m_force_d[0];
-		else m_trial_force_d[m_curr_trial_no - 1] = m_force_d[1];
-		if (m_trial_joint[m_curr_trial_no - 1] == 0) {
-			m_uwnd_dur = 0.8 + (0.4 / (m_max_f_d - m_min_f_d))*(m_force_d[0] - m_min_f_d);	///
-		}
-		else {
-			m_uwnd_dur = 1.3 + (0.3 / (m_max_f_d - m_min_f_d))*(m_force_d[1] - m_min_f_d);	///
-		}
+
+		
 		//m_uwnd_dur = 0.8 + (0.4 / (m_max_f_d - m_min_f_d))*(m_trial_force_d[m_curr_trial_no - 1] - m_min_f_d);	///
 		m_pTimer->setLimit(m_uwnd_dur);// (0.7)
-		for (i = 0; i < 2; i++) {
-			m_f_state[i] = 0;	// 
-			m_force_d[i] = m_min_f_d;
-		}
-		if(m_curr_trial_no <= 3) enableForceCtrl(false, true, 0);
-		else enableForceCtrl(false, true, 1);
+		//for (i = 0; i < 2; i++) {
+			//m_f_state[i] = 0;	// 
+			//m_force_d[i] = m_min_f_d;
+		//}
+		//if(m_curr_trial_no <= 3) enableForceCtrl(false, true, 0);
+		//else enableForceCtrl(false, true, 1);
 		//if (m_trial_joint[m_curr_trial_no - 1] == 0) {
 		//	windTendon(0, 1);
 		//}
@@ -467,8 +497,13 @@ int cExp_Baik_Hand_PSE::moveToNextPhase(char *ret_string)
 		//}
 	//	m_val_bar = 0.2*0.5;
 		recordResult(RECORD_TYPE::REC_TRIAL);
-		m_disp_f_bar = false;
-		if (m_curr_trial_no == m_tot_trial) {
+		
+		if (m_curr_trial_no == m_tot_trial/2) {
+			m_curr_trial_no++;
+			m_disp_train_sphere = true;
+			m_exp_phase = EXP_PHASE::FORCE_TEST;
+		}
+		else if (m_curr_trial_no == m_tot_trial) {
 			// record
 			setAudioPhase(AUDIO_PHASE::COMPLETE);
 			recordResult(RECORD_TYPE::REC_END);
@@ -499,7 +534,7 @@ void cExp_Baik_Hand_PSE::recordResult(int type)
 		printf("Experiment began at %02d:%02d:%02d on %04d/%02d/%02d\n", time_tm.tm_hour, time_tm.tm_min, time_tm.tm_sec,
 			time_tm.tm_year + 1900, time_tm.tm_mon + 1, time_tm.tm_mday);
 		printf("-------------------------------------------------------------------------\n");
-		printf("Trial no.\ttrial time (mm:ss)\tjoint_type (PIP/MCP)\tReference force (N)\tPerceived force (N)\n");
+		printf("Trial no.\ttrial time (mm:ss)\tanswer\t\tentered_answer\n");
 		printf("-------------------------------------------------------------------------\n");
 		pFile = fopen(m_rec_filename, "a");
 		if (pFile != NULL && !m_testSubject) {
@@ -507,7 +542,7 @@ void cExp_Baik_Hand_PSE::recordResult(int type)
 			fprintf(pFile, "Experiment began at %02d:%02d:%02d on %04d/%02d/%02d\n", time_tm.tm_hour, time_tm.tm_min, time_tm.tm_sec,
 				time_tm.tm_year + 1900, time_tm.tm_mon + 1, time_tm.tm_mday);
 			fprintf(pFile, "-------------------------------------------------------------------------\n");
-			fprintf(pFile, "Trial no.\ttrial time (mm:ss)\tjoint_type (PIP/MCP)\tReference force (N)\tPerceived force (N)\n");
+			fprintf(pFile, "Trial no.\ttrial time (mm:ss)\tanswer\t\tentered_answer\n");
 			fprintf(pFile, "-------------------------------------------------------------------------\n");
 			fclose(pFile);
 		}
@@ -517,14 +552,45 @@ void cExp_Baik_Hand_PSE::recordResult(int type)
 		time(&curr_time);
 		tot_time = difftime(curr_time, m_trialBeginTime);
 		err = _localtime64_s(&time_tm, &tot_time);
-		printf("%d\t%02d:%02d\t%s\t%.1f\t%.1f\n", m_curr_trial_no, time_tm.tm_min, time_tm.tm_sec, (m_trial_joint [m_curr_trial_no-1]==0)?"PIP":"MCP", m_trial_pt_force[m_curr_trial_no-1], m_trial_force_d[m_curr_trial_no-1]);
+		printf("%d\t%02d:%02d\t\t%c\t\t\t%c\n", m_curr_trial_no, time_tm.tm_min, time_tm.tm_sec, m_trial_reference[m_curr_trial_no-1], m_trial_answer[m_curr_trial_no-1]);
 
 		pFile = fopen(m_rec_filename, "a");
 		if (pFile != NULL && !m_testSubject) {
-			fprintf(pFile, "%d\t%02d:%02d\t%s\t%.1f\t%.1f\n", m_curr_trial_no, time_tm.tm_min, time_tm.tm_sec, (m_trial_joint[m_curr_trial_no - 1] == 0) ? "PIP" : "MCP", m_trial_pt_force[m_curr_trial_no - 1], m_trial_force_d[m_curr_trial_no - 1]);
+			fprintf(pFile, "%d\t%02d:%02d\t\t%c\t\t\t%c\n", m_curr_trial_no, time_tm.tm_min, time_tm.tm_sec, m_trial_reference[m_curr_trial_no - 1], m_trial_answer[m_curr_trial_no - 1]);
 			fclose(pFile);
 		}
+
+		if (m_curr_trial_no == m_tot_trial/2) {
+			int answer = 0;
+			for (int i = 0; i < m_curr_trial_no; i++)
+			{
+				if (m_trial_reference[i] == m_trial_answer[i]) answer++;
+			}
+			printf("num_of_trials : %d , num_of_answers : %d \n",m_curr_trial_no, answer);
+
+			pFile = fopen(m_rec_filename, "a");
+			if (pFile != NULL && !m_testSubject) {
+				fprintf(pFile, "num_of_trials : %d , num_of_answers : %d \n", m_curr_trial_no, answer);
+				fclose(pFile);
+			}
+		}
+		if (m_curr_trial_no == m_tot_trial) {
+			int answer = 0;
+			for (int i = 20; i < m_curr_trial_no; i++)
+			{
+				if (m_trial_reference[i] == m_trial_answer[i]) answer++;
+			}
+			printf("num_of_trials : %d , num_of_answers : %d \n", m_curr_trial_no, answer);
+
+			pFile = fopen(m_rec_filename, "a");
+			if (pFile != NULL && !m_testSubject) {
+				fprintf(pFile, "num_of_trials : %d , num_of_answers : %d \n", m_curr_trial_no, answer);
+				fclose(pFile);
+			}
+		}
+
 	}
+
 	else if (type == RECORD_TYPE::REC_END) {
 		time(&curr_time);
 		err = _localtime64_s(&time_tm, &curr_time);
@@ -564,7 +630,8 @@ int cExp_Baik_Hand_PSE::getCurrInstructionText(char pDestTxt[3][128])
 		}
 		else if (m_exp_phase == EXP_PHASE::EXP_PHASE3)
 		{
-			sprintf_s(pDestTxt[0], "%s %s", m_instruction_msg[m_exp_phase][0], m_txtBuf);
+			if(m_curr_trial_no <= m_tot_trial/2)sprintf_s(pDestTxt[0], "%s ('a' or 'c') =>  %s", m_instruction_msg[m_exp_phase][0], m_txtBuf);
+			else sprintf_s(pDestTxt[0], "%s ('a' or 'b') =>  %s", m_instruction_msg[m_exp_phase][0], m_txtBuf);
 		}
 		else if (m_exp_phase == EXP_PHASE::FORCE_TEST) {
 			sprintf_s(pDestTxt[0], "%s %s", m_instruction_msg[m_exp_phase][0], m_txtBuf);
@@ -666,54 +733,7 @@ void cExp_Baik_Hand_PSE::sub_display()
 	if (m_disp_test_sphere) {
 		glColor3f(1, 1, 0);
 
-		if (m_select_sphere_b) {
-			DISP_TOOLS::DrawSphere(glm::vec3(0.08, -0.05, m_sphere_z_pos), 0.01);
-			if (m_bending_sensor_input) {
-				glColor3f(1, 0, 0);
-				DISP_TOOLS::DrawSphere(glm::vec3(0.08, -0.05, m_sphere_z_pos), 0.01);
-			}
-		}
-		else {
-			DISP_TOOLS::DrawSphere(glm::vec3(0.08, -0.05, 0), 0.01);
-
-		}
-		glColor3f(1, 1, 0);
-		if (m_select_sphere_a) {
-			DISP_TOOLS::DrawSphere(glm::vec3(-0.08, -0.05, m_sphere_z_pos), 0.01);
-			if (m_bending_sensor_input) {
-				glColor3f(1, 0, 0);
-				DISP_TOOLS::DrawSphere(glm::vec3(-0.08, -0.05, m_sphere_z_pos), 0.01);
-			}
-		}
-		else {
-			DISP_TOOLS::DrawSphere(glm::vec3(-0.08, -0.05, 0), 0.01);
-		}
-		glutPostRedisplay();
-
-		glColor3f(0, 0, 0);
-		sprintf(pTxt[0], "a");
-		sprintf(pTxt[1], "b");
-		DISP_TOOLS::Draw_Text(pTxt[0], -0.08f, m_view_height - 0.08f, 0.f);
-		DISP_TOOLS::Draw_Text(pTxt[1], 0.08, m_view_height - 0.08f, 0.f);
-	}
-
-	if (m_disp_train_sphere) {
-		//DISP_TOOLS::DrawAxes(10, 3);
-		glColor3f(1, 1, 0);
-		
-		if (m_select_sphere_c) {
-			DISP_TOOLS::DrawSphere(glm::vec3(0.08, -0.05, m_sphere_z_pos), 0.01);
-			if (m_bending_sensor_input) {
-				glColor3f(1, 0, 0);
-				DISP_TOOLS::DrawSphere(glm::vec3(0.08, -0.05, m_sphere_z_pos), 0.01);
-			}
-		}
-		else {
-			DISP_TOOLS::DrawSphere(glm::vec3(0.08, -0.05, 0), 0.01);
-
-		}
-		glColor3f(1, 1, 0);
-		if (m_select_sphere_b) {
+		if (m_select_sphere_a || m_select_sphere_b || m_select_sphere_c) {
 			DISP_TOOLS::DrawSphere(glm::vec3(0, -0.05, m_sphere_z_pos), 0.01);
 			if (m_bending_sensor_input) {
 				glColor3f(1, 0, 0);
@@ -722,34 +742,100 @@ void cExp_Baik_Hand_PSE::sub_display()
 		}
 		else {
 			DISP_TOOLS::DrawSphere(glm::vec3(0, -0.05, 0), 0.01);
-		}
-		glColor3f(1, 1, 0);
-		if (m_select_sphere_a) {
-			DISP_TOOLS::DrawSphere(glm::vec3(-0.08, -0.05, m_sphere_z_pos), 0.01);
-			if (m_bending_sensor_input) {
-				glColor3f(1, 0, 0);
-				DISP_TOOLS::DrawSphere(glm::vec3(-0.08, -0.05, m_sphere_z_pos), 0.01);
-			}
-		}
-		else {
-			DISP_TOOLS::DrawSphere(glm::vec3(-0.08, -0.05, 0), 0.01);
+
 		}
 		glutPostRedisplay();
-		//(m_select_sphere_b) ? DISP_TOOLS::DrawSphere(glm::vec3(0, -0.05, m_sphere_z_pos), 0.01) : DISP_TOOLS::DrawSphere(glm::vec3(0, -0.05, 0), 0.01);
-		
-		//(m_select_sphere_c) ? DISP_TOOLS::DrawSphere(glm::vec3(-0.07, -0.05, m_sphere_z_pos), 0.01) : DISP_TOOLS::DrawSphere(glm::vec3(-0.07, -0.05, 0), 0.01);
 
-
-		/// <summary>
-		/// display weights
-		/// </summary>
 		glColor3f(0, 0, 0);
-		(m_select_sphere_a && m_sphere_move) ? sprintf(pTxt[0], "a.100g selected") : sprintf(pTxt[0], "a.100g");
-		(m_select_sphere_b && m_sphere_move) ? sprintf(pTxt[1], "b.300g selected") : sprintf(pTxt[1], "b.300g");
-		(m_select_sphere_c && m_sphere_move) ? sprintf(pTxt[2], "c.500g selected") : sprintf(pTxt[2], "c.500g");
-		DISP_TOOLS::Draw_Text(pTxt[0], -0.09f, m_view_height - 0.08f, 0.f);
-		DISP_TOOLS::Draw_Text(pTxt[1],-0.010, m_view_height - 0.08f, 0.f);
-		DISP_TOOLS::Draw_Text(pTxt[2], 0.07, m_view_height - 0.08f, 0.f);
+		sprintf(pTxt[0], "m");
+		DISP_TOOLS::Draw_Text(pTxt[0], 0.f, m_view_height - 0.08f, 0.f);
+	}
+	/// <summary>
+	/// first block (100g,300) -> second block (100g,200g)
+	/// </summary>
+	if (m_disp_train_sphere) {
+
+		if (m_curr_trial_no == 1)
+		{
+			glColor3f(1, 1, 0);
+
+			if (m_select_sphere_c) {
+				DISP_TOOLS::DrawSphere(glm::vec3(0.02, -0.05, m_sphere_z_pos), 0.01);
+				if (m_bending_sensor_input) {
+					glColor3f(1, 0, 0);
+					DISP_TOOLS::DrawSphere(glm::vec3(0.02, -0.05, m_sphere_z_pos), 0.01);
+				}
+			}
+			else {
+				DISP_TOOLS::DrawSphere(glm::vec3(0.02, -0.05, 0), 0.01);
+
+			}
+
+			glColor3f(1, 1, 0);
+			if (m_select_sphere_a) {
+				DISP_TOOLS::DrawSphere(glm::vec3(-0.02, -0.05, m_sphere_z_pos), 0.01);
+				if (m_bending_sensor_input) {
+					glColor3f(1, 0, 0);
+					DISP_TOOLS::DrawSphere(glm::vec3(-0.02, -0.05, m_sphere_z_pos), 0.01);
+				}
+			}
+			else {
+				DISP_TOOLS::DrawSphere(glm::vec3(-0.02, -0.05, 0), 0.01);
+			}
+			glutPostRedisplay();
+
+
+			/// <summary>
+			/// display weights
+			/// </summary>
+			glColor3f(0, 0, 0);
+			(m_select_sphere_a && m_sphere_move) ? sprintf(pTxt[0], "a.100g selected") : sprintf(pTxt[0], "a.100g");
+			(m_select_sphere_c && m_sphere_move) ? sprintf(pTxt[1], "c.500g selected") : sprintf(pTxt[1], "c.500g");
+			DISP_TOOLS::Draw_Text(pTxt[0], -0.03f, m_view_height - 0.08f, 0.f);
+			DISP_TOOLS::Draw_Text(pTxt[1], 0.02, m_view_height - 0.08f, 0.f);
+		}
+		//DISP_TOOLS::DrawAxes(10, 3);
+		
+		else if (m_curr_trial_no == m_tot_trial/2+1)
+		{
+			glColor3f(1, 1, 0);
+
+			if (m_select_sphere_b) {
+				DISP_TOOLS::DrawSphere(glm::vec3(0.02, -0.05, m_sphere_z_pos), 0.01);
+				if (m_bending_sensor_input) {
+					glColor3f(1, 0, 0);
+					DISP_TOOLS::DrawSphere(glm::vec3(0.02, -0.05, m_sphere_z_pos), 0.01);
+				}
+			}
+			else {
+				DISP_TOOLS::DrawSphere(glm::vec3(0.02, -0.05, 0), 0.01);
+
+			}
+
+			glColor3f(1, 1, 0);
+			if (m_select_sphere_a) {
+				DISP_TOOLS::DrawSphere(glm::vec3(-0.02, -0.05, m_sphere_z_pos), 0.01);
+				if (m_bending_sensor_input) {
+					glColor3f(1, 0, 0);
+					DISP_TOOLS::DrawSphere(glm::vec3(-0.02, -0.05, m_sphere_z_pos), 0.01);
+				}
+			}
+			else {
+				DISP_TOOLS::DrawSphere(glm::vec3(-0.02, -0.05, 0), 0.01);
+			}
+			glutPostRedisplay();
+
+
+			/// <summary>
+			/// display weights
+			/// </summary>
+			glColor3f(0, 0, 0);
+			(m_select_sphere_a && m_sphere_move) ? sprintf(pTxt[0], "a.100g selected") : sprintf(pTxt[0], "a.100g");
+			(m_select_sphere_b && m_sphere_move) ? sprintf(pTxt[1], "b.300g selected") : sprintf(pTxt[1], "b.300g");
+			
+			DISP_TOOLS::Draw_Text(pTxt[0], -0.03f, m_view_height - 0.08f, 0.f);
+			DISP_TOOLS::Draw_Text(pTxt[1], 0.02, m_view_height - 0.08f, 0.f);
+		}
 		
 	}
 	if (m_disp_f_coeff) {

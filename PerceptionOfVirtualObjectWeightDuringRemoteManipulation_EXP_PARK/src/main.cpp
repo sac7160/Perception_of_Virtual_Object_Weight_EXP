@@ -75,7 +75,7 @@ void idle()
 {
 	Sleep(10);
 	glutPostRedisplay();
-
+	
 	if ((m_expBaik.m_exp_phase == FORCE_TEST || m_expBaik.m_exp_phase == EXP_PHASE2)) m_expBaik.SP->ReadData(m_expBaik.serial_txtbuf, 255);
 	/// <summary>
 	/// bending sensor 
@@ -96,12 +96,12 @@ void idle()
 	/// FORCE_TEST PHASE
 	/// serial
 	/// </summary>
-	if (m_expBaik.m_exp_phase == FORCE_TEST && m_expBaik.m_sphere_move )
+	if ((m_expBaik.m_exp_phase == FORCE_TEST || m_expBaik.m_exp_phase == EXP_PHASE2)&& m_expBaik.m_sphere_move )
 	{
 		//Serial read!!!!!!!!!!!!!!!!!!!!
 		
 		//printf("%c", m_expBaik.serial_txtbuf[0]);
-		//idle 에 read 넣으면 안될듯 수정 필요 0425
+		
 		if (m_expBaik.m_bending_sensor_input)
 		{
 			
@@ -111,57 +111,29 @@ void idle()
 			/// writedata 4 : servo motor degree 60
 			/// writedata 5 : servo motor degree 80
 			/// </summary>
-			if (m_expBaik.m_select_sphere_a) m_expBaik.SP->WriteData("3", 255);
-			else if (m_expBaik.m_select_sphere_b) m_expBaik.SP->WriteData("4", 255);
-			else if (m_expBaik.m_select_sphere_c) m_expBaik.SP->WriteData("5", 255);
+
+			if (m_expBaik.get_curr_trial_num() <= (m_expBaik.get_total_trial() / 2)) {
+				if (m_expBaik.m_select_sphere_a) { m_expBaik.SP->WriteData("3", 255); }
+				else if (m_expBaik.m_select_sphere_c) { m_expBaik.SP->WriteData("5", 255); }
+			}
+			else {
+				if (m_expBaik.m_select_sphere_a) { m_expBaik.SP->WriteData("3", 255); }
+				else if (m_expBaik.m_select_sphere_b) { m_expBaik.SP->WriteData("4", 255); }
+			}
 
 			if (m_expBaik.m_sphere_z_pos < 0.15) {
-				if (m_expBaik.m_select_sphere_a)m_expBaik.m_sphere_z_pos += 0.005;
-				else if (m_expBaik.m_select_sphere_b)m_expBaik.m_sphere_z_pos += 0.003;
-				else m_expBaik.m_sphere_z_pos += 0.001;
+				if (m_expBaik.m_select_sphere_a)m_expBaik.m_sphere_z_pos += 0.08;
+				else if (m_expBaik.m_select_sphere_b)m_expBaik.m_sphere_z_pos += 0.05;
+				else m_expBaik.m_sphere_z_pos += 0.02;
 				
 			}
-			else if (m_expBaik.m_sphere_z_pos > 0.15) {
+			else if (m_expBaik.m_sphere_z_pos >= 0.15) {
 				m_expBaik.m_sphere_z_pos = 0;
 				m_expBaik.m_sphere_move = false;
 				m_expBaik.m_bending_sensor_input = false;
 				m_expBaik.m_select_sphere_a = false;
 				m_expBaik.m_select_sphere_b = false;
 				m_expBaik.m_select_sphere_c = false;
-			}
-		}
-	}
-	/// <summary>
-	/// FORCE_TEST PHASE
-	/// serial
-	/// </summary>
-	if (m_expBaik.m_exp_phase == EXP_PHASE2 && m_expBaik.m_sphere_move)
-	{
-		if (m_expBaik.m_bending_sensor_input)
-		{
-			//랜덤값 수정 필요
-
-			/// <summary>
-			/// writedata 2 : servo motor degree 30
-			/// writedata 3 : servo motor degree 40
-			/// writedata 4 : servo motor degree 60
-			/// writedata 5 : servo motor degree 80
-			/// </summary>
-			if (m_expBaik.m_select_sphere_a) m_expBaik.SP->WriteData("3", 255);
-			else if (m_expBaik.m_select_sphere_b) m_expBaik.SP->WriteData("4", 255);
-
-			if (m_expBaik.m_sphere_z_pos < 0.15) {
-				if (m_expBaik.m_select_sphere_a)m_expBaik.m_sphere_z_pos += 0.005;
-				else if (m_expBaik.m_select_sphere_b)m_expBaik.m_sphere_z_pos += 0.003;
-				else m_expBaik.m_sphere_z_pos += 0.001;
-
-			}
-			else if (m_expBaik.m_sphere_z_pos > 0.15) {
-				m_expBaik.m_sphere_z_pos = 0;
-				m_expBaik.m_sphere_move = false;
-				m_expBaik.m_bending_sensor_input = false;
-				m_expBaik.m_select_sphere_a = false;
-				m_expBaik.m_select_sphere_b = false;
 			}
 		}
 	}

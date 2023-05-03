@@ -6,12 +6,14 @@
 #include "Serial.h"
 
 
+
 enum EXP_PHASE {
 	INIT = 0,		// initialize Baik hand winding
 	DEVICE_INIT,	// tenson initialization
-	FORCE_TEST,		// test the force exertion prior to the measurement
+	
 //	PHANTOM_INIT,
 	INFO_INPUT,		// subject ID input
+	FORCE_TEST,		// test the force exertion prior to the measurement
 	EXP_PHASE1,
 	EXP_PHASE2,
 	EXP_PHASE3,
@@ -65,6 +67,9 @@ public:
 	void PhantomCallbackSubFunc();
 	void enableForceCtrl(bool enable, bool opt, int jnt);
 	void trialUnwind();
+
+	int gen_random_num();	//generate random number (1~3)
+
 	//-----------------------------------------------------------------------
 	// MEMBERS:
 	//-----------------------------------------------------------------------
@@ -114,6 +119,12 @@ public:
 	bool m_select_sphere_c;
 	char serial_txtbuf[10];
 	bool m_bending_sensor_input;
+
+	char m_trial_reference[50];		//test phase reference
+	char m_trial_answer[50];		//test phase user answer
+	
+	int get_curr_trial_num();
+	int get_total_trial();
 	
 private:
 	double m_view_height;
@@ -131,7 +142,11 @@ private:
 	double m_trial_pt_force[16];
 	int m_trial_joint[16];	// 0: PIP 1: MCP
 	double m_trial_force_d[16];
+
+
+
 	int m_tot_trial;
+	
 //	float m_val_bar;	// range: 0~1.0; A variable displays the finger joint PWM magnitude
 	int m_uwnd_jnt;	// 0: PIP 1: MCP
 	float m_uwnd_dur;	// the duration to unwind the string
